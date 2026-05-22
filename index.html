@@ -550,6 +550,14 @@
     .dl-section { margin-bottom:4px; }
     .dl-section-hd { display:flex; align-items:center; gap:8px; padding:10px 16px; background:rgba(15,23,42,0.6); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border-bottom:1px solid rgba(34,211,238,0.1); font-size:13px; }
     .dl-section-meta { margin-left:auto; font-size:12px; color:var(--text3); }
+    .dl-kinshi { margin:10px 0 4px; border-top:1px solid var(--glass-border); }
+    .dl-kinshi-title { padding:12px 16px 6px; font-size:14px; font-weight:700; color:var(--text); }
+    .dl-kinshi-empty { padding:12px 16px 18px; font-size:13px; color:var(--text3); }
+    .dl-kinshi-item { display:block; padding:10px 16px; border-top:1px solid rgba(255,255,255,0.06); text-decoration:none; color:inherit; }
+    .dl-kinshi-item:active { background:rgba(239,68,68,0.08); }
+    .dl-kinshi-name { font-size:14px; font-weight:700; line-height:1.45; }
+    .dl-kinshi-addr { margin-top:2px; font-size:12px; color:var(--text2); line-height:1.45; }
+    .dl-kinshi-staff { margin-top:2px; font-size:11px; color:var(--text3); line-height:1.4; }
     .dl-auth { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100dvh; padding:40px 32px; gap:16px; text-align:center; }
     .dl-auth-icon { font-size:48px; }
     .dl-auth-title { font-size:20px; font-weight:700; }
@@ -1032,9 +1040,9 @@ async function startDistribMode() {
       }
       document.querySelector('.app').style.display = 'none';
       if (session.mode === 'admin') {
-        showAdminAuth(areas, prefCodes, session.d || '', session.pw || '');
+        showAdminAuth(areas, prefCodes, session.d || '', session.pw || '', session.kinshi || []);
       } else {
-        showStaffView(parseDRows(session.d || '', prefCodes, areas), prefCodes);
+        showStaffView(parseDRows(session.d || '', prefCodes, areas), prefCodes, session.kinshi || [], session.staffName || '');
       }
       return;
     } catch(e) {
@@ -1055,8 +1063,8 @@ async function startDistribMode() {
     try { var res = await fetch('data/' + prefCodes[i] + '.json'); areas = areas.concat(await res.json()); } catch(e) {}
   }
   document.querySelector('.app').style.display = 'none';
-  if (mode === 'staff') { showStaffView(parseDRows(dParam, prefCodes, areas), prefCodes); }
-  else if (mode === 'admin') { showAdminAuth(areas, prefCodes, dParam, params.get('pw') || ''); }
+  if (mode === 'staff') { showStaffView(parseDRows(dParam, prefCodes, areas), prefCodes, [], ''); }
+  else if (mode === 'admin') { showAdminAuth(areas, prefCodes, dParam, params.get('pw') || '', []); }
 }
 
 function parseDRows(dParam, prefCodes, areas) {
@@ -1109,6 +1117,43 @@ function dlShow(html) {
 
 function dlStatCard(num, label) {
   return '<div class="dl-stat-card"><div class="dl-stat-num">'+num+'</div><div class="dl-stat-label">'+label+'</div></div>';
+}
+
+function normalizeKinshiList(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map(function(k) {
+    var lat = Number(k && k.lat);
+    var lng = Number(k && k.lng);
+    return {
+      name: String((k && k.name) || '').trim(),
+      addr: String((k && (k.addr || k.address || k.fullAddress)) || '').trim(),
+      staffName: String((k && k.staffName) || '').trim(),
+      lat: isFinite(lat) ? lat : null,
+      lng: isFinite(lng) ? lng : null
+    };
+  }).filter(function(k) { return k.name || k.addr; });
+}
+
+function kinshiMapUrl(k) {
+  if (k.lat !== null && k.lng !== null) {
+    return 'https://www.google.com/maps?q=' + encodeURIComponent(k.lat + ',' + k.lng);
+  }
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(k.addr || k.name);
+}
+
+function renderKinshiSection(list, isAdmin) {
+  var kinshi = normalizeKinshiList(list);
+  var empty = isAdmin ? '禁止物件はありません' : 'この担当エリア内の禁止物件はありません';
+  var html = '<div class="dl-kinshi"><div class="dl-kinshi-title">禁止物件 ' + kinshi.length + '件</div>';
+  if (kinshi.length === 0) return html + '<div class="dl-kinshi-empty">' + empty + '</div></div>';
+  kinshi.forEach(function(k) {
+    html += '<a class="dl-kinshi-item" href="' + kinshiMapUrl(k) + '" target="_blank" rel="noopener noreferrer">'
+      + (k.name ? '<div class="dl-kinshi-name">' + esc(k.name) + '</div>' : '')
+      + (k.addr ? '<div class="dl-kinshi-addr">' + esc(k.addr) + '</div>' : '')
+      + (isAdmin && k.staffName ? '<div class="dl-kinshi-staff">担当：' + esc(k.staffName) + '</div>' : '')
+      + '</a>';
+  });
+  return html + '</div>';
 }
 
 function dlNameCell(a) {
@@ -1171,15 +1216,16 @@ function dlTh(label, key, cls, sortKey, sortAsc, sortFn) {
   return '<span class="'+(cls||'dl-th-sm')+'" style="'+style+'" onclick="'+sortFn+'(\''+key+'\')">'+label+ind+'</span>';
 }
 
-function showStaffView(rows, prefCodes) {
+function showStaffView(rows, prefCodes, kinshi, staffName) {
   _dlStaffSortKey = 'm'; _dlStaffSortAsc = true;
-  _staffCtx = {rows: rows, prefCodes: prefCodes};
+  _staffCtx = {rows: rows, prefCodes: prefCodes, kinshi: normalizeKinshiList(kinshi), staffName: staffName || ''};
   var ts=0;
   rows.forEach(function(r){ts+=r.area.s;});
   var prefName = prefCodes.map(getPrefName).join('・');
   var wrapper = '<div class="dl-wrap"><div class="dl-header"><span class="dl-icon">📋</span><div><div class="dl-title">配布リスト</div><div class="dl-sub">'+esc(prefName)+'</div></div></div>'
     +'<div class="dl-stats-row">'+dlStatCard(fmtNum(ts),'世帯合計')+dlStatCard(String(rows.length),'エリア数')+'</div>'
     +(rows.length ? '<div id="dlStaffTable"></div>' : '<div class="empty-state"><div class="empty-icon">📭</div>データがありません</div>')
+    +renderKinshiSection(_staffCtx.kinshi, false)
     +'<div class="dl-hint">📍 町丁目タップ → Googleマップで確認</div></div>';
   dlShow(wrapper);
   if (rows.length) renderStaffTable();
@@ -1211,8 +1257,8 @@ function dlStaffSort(key) {
   renderStaffTable();
 }
 
-function showAdminAuth(areas, prefCodes, dParam, pwHash) {
-  window._dlAuth = {areas:areas, prefCodes:prefCodes, dParam:dParam, pwHash:pwHash};
+function showAdminAuth(areas, prefCodes, dParam, pwHash, kinshi) {
+  window._dlAuth = {areas:areas, prefCodes:prefCodes, dParam:dParam, pwHash:pwHash, kinshi: normalizeKinshiList(kinshi)};
   dlShow('<div class="dl-wrap dl-auth"><div class="dl-auth-icon">🔒</div><div class="dl-auth-title">管理者認証</div><div class="dl-auth-sub">パスワードを入力してください</div><input type="password" id="pwInput" class="dl-pw-input" maxlength="4" placeholder="••••" inputmode="numeric"><div id="pwError" class="dl-pw-error"></div><button class="retry-btn" onclick="checkAdminPw()">確認</button></div>');
   var inp = document.getElementById('pwInput');
   inp.addEventListener('keydown', function(e){if(e.key==='Enter')checkAdminPw();});
@@ -1229,7 +1275,7 @@ async function checkAdminPw() {
     if (hex === window._dlAuth.pwHash) {
       var ctx = window._dlAuth;
       dlShow('');
-      showAdminView(ctx.areas, ctx.prefCodes, ctx.dParam);
+      showAdminView(ctx.areas, ctx.prefCodes, ctx.dParam, ctx.kinshi);
     } else {
       err.textContent = 'パスワードが違います';
       inp.value = ''; inp.focus();
@@ -1237,12 +1283,12 @@ async function checkAdminPw() {
   } catch(e) { err.textContent = 'エラーが発生しました'; }
 }
 
-function showAdminView(areas, prefCodes, dParam) {
+function showAdminView(areas, prefCodes, dParam, kinshi) {
   var staffMap = parseAdminD(dParam, prefCodes, areas);
   var nums = Array.from(staffMap.keys()).sort(function(a,b){return a-b;});
   var tc=0, ta=0;
   nums.forEach(function(n){staffMap.get(n).forEach(function(r){tc+=r.count;ta++;});});
-  _adminCtx = {prefName:prefCodes.map(getPrefName).join('・'), staffMap:staffMap, nums:nums, totalCount:tc, totalAreas:ta};
+  _adminCtx = {prefName:prefCodes.map(getPrefName).join('・'), staffMap:staffMap, nums:nums, totalCount:tc, totalAreas:ta, kinshi: normalizeKinshiList(kinshi)};
   _adminTab = 0;
   renderAdminView();
 }
@@ -1261,9 +1307,11 @@ function renderAdminView() {
     var col=STAFF_COLORS[(n-1)%STAFF_COLORS.length], rows=ctx.staffMap.get(n)||[];
     body+='<div class="dl-section"><div class="dl-section-hd" style="border-left:3px solid '+col+'"><span class="dl-dot" style="background:'+col+'"></span><strong>担当'+n+'</strong><span class="dl-section-meta">'+rows.length+'エリア</span></div>'+buildAdminTable(rows)+'</div>';
   });
+  var kinshi = ctx.kinshi || [];
+  if (_adminTab !== 0) kinshi = kinshi.filter(function(k) { return k.staffName === '担当' + _adminTab; });
   var html='<div class="dl-wrap"><div class="dl-header"><span class="dl-icon">📋</span><div><div class="dl-title">管理者ビュー</div><div class="dl-sub">'+esc(ctx.prefName)+'</div></div></div>'
     +tabs+'<div class="dl-stats-row">'+dlStatCard(String(ctx.totalAreas),'エリア計')+dlStatCard(String(ctx.nums.length),'担当者数')+'</div>'
-    +'<div id="dlContent">'+body+'</div></div>';
+    +'<div id="dlContent">'+body+renderKinshiSection(kinshi, true)+'</div></div>';
   dlShow(html);
 }
 
