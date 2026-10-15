@@ -78,3 +78,10 @@ var areasByPref = {}; var loadedPrefs = {};
 CACHE_NAME: setai-viewer-v3
 PRECACHE: index.html, manifest.json, data/index.json
 data/XX.json: network-first-fallback-cache
+
+## 配布指示リンク (data/sessions/ID.json)
+公開リポジトリなので、担当エリア・禁止物件（個人名・住所）・管理者PINのハッシュを平文で置かない。
+- 形式: `{"v":2,"alg":"A256GCM","iv":"…","ct":"…"}`（AES-256-GCM、中身は従来の {mode, staffName, pref, d, kinshi, pw}）
+- リンク: `?s=ID#k=鍵`。鍵は # 以降だけに入り、GitHub Pagesにもリポジトリにも残らない
+- 作成: `tools/encrypt-session.js` の encryptSession()（ブラウザ・Node共通）
+- 平文の旧形式も読み込めるが、移行期間だけの互換。新規作成は必ず暗号化形式で行う
