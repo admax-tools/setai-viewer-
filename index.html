@@ -6,6 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0f172a">
+  <meta name="robots" content="noindex, nofollow">
   <title>世帯数ビューア</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -1032,6 +1033,13 @@ async function startDistribMode() {
       var res = await fetch('data/sessions/' + sessionId + '.json');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       var session = await res.json();
+      // 暗号化形式（v2）: 鍵はURLの # 以降にだけあり、サーバーにもリポジトリにも残らない
+      if (session && session.v === 2) {
+        var hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+        var key = hashParams.get('k');
+        if (!key) throw new Error('リンクが不完全です（# 以降が欠けています）');
+        session = await decryptSession(session, key);
+      }
       try { var r = await fetch('data/index.json'); prefList = (await r.json()).prefectures || []; } catch(e) {}
       var prefCodes = (session.pref || '').split(',').map(function(s){return s.trim().padStart(2,'0');}).filter(Boolean);
       var areas = [];
@@ -1047,7 +1055,7 @@ async function startDistribMode() {
       return;
     } catch(e) {
       document.querySelector('.app').style.display = 'none';
-      dlShow('<div class="empty-state"><div class="empty-icon">⚠️</div>セッションデータの読み込みに失敗しました<br><small>' + e.message + '</small><br><br><button class="retry-btn" onclick="location.reload()">再読み込み</button></div>');
+      dlShow('<div class="empty-state"><div class="empty-icon">⚠️</div>セッションデータの読み込みに失敗しました<br><small>' + esc(e.message) + '</small><br><br><button class="retry-btn" onclick="location.reload()">再読み込み</button></div>');
       return;
     }
   }
@@ -1065,6 +1073,29 @@ async function startDistribMode() {
   document.querySelector('.app').style.display = 'none';
   if (mode === 'staff') { showStaffView(parseDRows(dParam, prefCodes, areas), prefCodes, [], ''); }
   else if (mode === 'admin') { showAdminAuth(areas, prefCodes, dParam, params.get('pw') || '', []); }
+}
+
+// ---- 配布指示の復号（AES-256-GCM, 鍵はURLの #k= にbase64url） ----
+function b64urlToBytes(str) {
+  var b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4) b64 += '=';
+  var bin = atob(b64);
+  var out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function decryptSession(enc, keyStr) {
+  var raw = b64urlToBytes(keyStr);
+  if (raw.length !== 32) throw new Error('リンクの鍵が正しくありません');
+  var key = await crypto.subtle.importKey('raw', raw, {name: 'AES-GCM'}, false, ['decrypt']);
+  var plain;
+  try {
+    plain = await crypto.subtle.decrypt({name: 'AES-GCM', iv: b64urlToBytes(enc.iv)}, key, b64urlToBytes(enc.ct));
+  } catch(e) {
+    throw new Error('リンクの鍵が一致しません');
+  }
+  return JSON.parse(new TextDecoder().decode(plain));
 }
 
 function parseDRows(dParam, prefCodes, areas) {
