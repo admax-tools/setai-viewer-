@@ -1,0 +1,38 @@
+name: 古い配布指示を削除
+
+# 配布指示リンクは1週間ほどで使わなくなるため、作成から7日を過ぎた
+# data/sessions/*.json を毎日削除する。
+on:
+  schedule:
+    - cron: '0 18 * * *'   # 毎日 03:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 7日より古いファイルを削除
+        run: |
+          limit=$(date -d '7 days ago' +%s)
+          removed=0
+          for f in data/sessions/*.json; do
+            [ -e "$f" ] || continue
+            t=$(git log -1 --format=%ct -- "$f")
+            if [ -n "$t" ] && [ "$t" -lt "$limit" ]; then
+              git rm -q "$f"
+              removed=$((removed + 1))
+            fi
+          done
+          echo "削除: $removed 件"
+          if [ "$removed" -gt 0 ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898+github-actions[bot]@users.noreply.github.com'
+            git commit -q -m "7日を過ぎた配布指示を削除（$removed 件）"
+            git push
+          fi
