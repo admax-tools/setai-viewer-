@@ -1030,8 +1030,16 @@ async function startDistribMode() {
   var sessionId = params.get('s');
   if (sessionId) {
     try {
-      var res = await fetch('data/sessions/' + sessionId + '.json', {cache: 'no-store'});
-      if (res.status === 404) throw new Error('まだ公開されていません。QRを作ってから1〜2分たってから再読み込みしてください');
+      // 作った直後はサイトへの反映待ち（1〜2分）で404になるので、5秒おきに最大2分待って取り直す
+      var res = null;
+      for (var tries = 0; tries < 24; tries++) {
+        res = await fetch('data/sessions/' + sessionId + '.json?t=' + Date.now(), {cache: 'no-store'});
+        if (res.status !== 404) break;
+        document.querySelector('.app').style.display = 'none';
+        dlShow('<div class="empty-state"><div class="empty-icon">⏳</div>配布指示を準備中です<br><small>作成直後は1〜2分かかります。このままお待ちください</small></div>');
+        await new Promise(function(ok) { setTimeout(ok, 5000); });
+      }
+      if (res.status === 404) throw new Error('配布指示が見つかりません（期限切れか、まだ反映されていません）');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       var session = await res.json();
       // 暗号化形式（v2）: 鍵はURLの # 以降にだけあり、サーバーにもリポジトリにも残らない
