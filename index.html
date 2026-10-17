@@ -1030,7 +1030,8 @@ async function startDistribMode() {
   var sessionId = params.get('s');
   if (sessionId) {
     try {
-      var res = await fetch('data/sessions/' + sessionId + '.json');
+      var res = await fetch('data/sessions/' + sessionId + '.json', {cache: 'no-store'});
+      if (res.status === 404) throw new Error('まだ公開されていません。QRを作ってから1〜2分たってから再読み込みしてください');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       var session = await res.json();
       // 暗号化形式（v2）: 鍵はURLの # 以降にだけあり、サーバーにもリポジトリにも残らない
