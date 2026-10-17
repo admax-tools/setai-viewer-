@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="robots" content="noindex, nofollow">
+  <title>世帯数ビューア</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    :root {
+      --bg:          #080d1a;
+      --surface:     rgba(30, 41, 59, 0.6);
+      --surface2:    rgba(51, 65, 85, 0.5);
+      --accent:      #3b82f6;
+      --accent2:     #60a5fa;
+      --accent-glow: rgba(59, 130, 246, 0.15);
+      --text:        #f1f5f9;
+      --text2:       #94a3b8;
+      --text3:       #64748b;
+      --green:       #22c55e;
+      --orange:      #f97316;
+      --red:         #ef4444;
+      --cyan:        #22d3ee;
+      --cyan-glow:   rgba(34, 211, 238, 0.15);
+      --radius:      14px;
+      --glass-bg:    rgba(255, 255, 255, 0.04);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --glass-blur:  16px;
+      --safe-top:    env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+      height: 100dvh;
+      position: relative;
+    }
+
+    /* ===== Ambient Background Orbs ===== */
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 0;
+      animation: orbFloat 20s ease-in-out infinite alternate;
+    }
+    body::before {
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, #1e40af 0%, transparent 70%);
+      top: -80px; right: -60px;
+    }
+    body::after {
+      width: 250px; height: 250px;
+      background: radial-gradient(circle, #0891b2 0%, transparent 70%);
+      bottom: 10%; left: -40px;
+      animation-delay: -10s; animation-duration: 25s;
+    }
+    @keyframes orbFloat {
+      0%   { transform: translate(0, 0) scale(1); }
+      50%  { transform: translate(20px, -30px) scale(1.1); }
+      100% { transform: translate(-10px, 20px) scale(0.95); }
+    }
+
+    /* ===== App Shell ===== */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ===== Header ===== */
+    .header {
+      background: rgba(15, 23, 42, 0.7);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      backdrop-filter: blur(24px) saturate(180%);
+      border-bottom: 1px solid var(--glass-border);
+      padding: calc(12px + var(--safe-top)) 16px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+    .back-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--accent2);
+      font-size: 26px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 6px 2px 0;
+      flex-shrink: 0;
+      transition: transform 0.2s;
+    }
+    .back-btn:active { transform: scale(0.85); }
+    .back-btn.visible { display: block; }
+    .header h1 {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: linear-gradient(135deg, #f1f5f9 0%, #22d3ee 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-sub {
+      font-size: 9px;
+      color: var(--accent2);
+      opacity: 0.5;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-weight: 600;
+    }
+
+    /* ===== Search ===== */
+    .search-wrap {
+      padding: 8px 14px;
+      background: transparent;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 90;
+    }
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: var(--glass-bg);
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+      padding: 0 14px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .search-box:focus-within {
+      border-color: rgba(59,130,246,0.4);
+      box-shadow: 0 0 0 4px var(--accent-glow), 0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+      background: rgba(255,255,255,0.06);
+    }
+    .search-icon { color: var(--text3); font-size: 16px; flex-shrink: 0; }
+    .search-input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 15px;
+      padding: 11px 10px;
+      font-family: inherit;
+    }
+    .search-input::placeholder { color: var(--text3); }
+    .clear-btn {
+      display: none;
+      background: rgba(255,255,255,0.1);
+      border: none;
+      color: var(--text2);
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      font-size: 12px;
+      cursor: pointer;
+      line-height: 22px;
+      text-align: center;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .clear-btn:active { background: rgba(255,255,255,0.2); }
+    .clear-btn.visible { display: block; }
+
+    /* Suggest dropdown */
+    .suggest-list {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 18px; right: 18px;
+      background: rgba(15, 23, 42, 0.85);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      border-radius: 0 0 var(--radius) var(--radius);
+      max-height: 60vh;
+      overflow-y: auto;
+      z-index: 200;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    }
+    .suggest-list.visible { display: block; }
+    .suggest-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .suggest-item:active { background: rgba(59,130,246,0.1); }
+    .suggest-item .s-name { font-size: 14px; font-weight: 600; }
+    .suggest-item .s-path { font-size: 11px; color: var(--text3); margin-top: 3px; }
+    .suggest-hint {
+      padding: 12px 16px;
+      font-size: 11px;
+      color: var(--text3);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* ===== Content ===== */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: var(--safe-bottom);
+      display: flex;
+      flex-direction: column;
+    }
+    .content::-webkit-scrollbar { width: 3px; }
+    .content::-webkit-scrollbar-track { background: transparent; }
+    .content::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.3); border-radius: 2px; }
+
+    /* ===== Prefecture Grid ===== */
+    .pref-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      padding: 10px 12px;
+      flex: 1;
+      align-content: start;
+    }
+    .pref-card {
+      background: var(--glass-bg);
+      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+      backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04);
+      padding: 14px 4px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      -webkit-user-select: none;
+      user-select: none;
+      animation: cardIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+      position: relative;
+      overflow: hidden;
+    }
+    .pref-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 50%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 100%);
+      border-radius: 12px 12px 0 0;
+      pointer-events: none;
+    }
+    .pref-card:active {
+      transform: scale(0.92);
+      border-color: rgba(59,130,246,0.5);
+      box-shadow: 0 0 20px var(--accent-glow), 0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+      background: rgba(59,130,246,0.08);
+    }
+    .pref-card .pref-name {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      overflow: hidden;
+      position: relative;
+    }
+    .pref-card .pref-areas {
+      font-size: 10px;
+      color: var(--cyan);
+      margin-top: 4px;
+      font-weight: 500;
+      opacity: 0.6;
+      font-variant-numeric: tabular-nums;
+      position: relative;
+    }
+    @keyframes cardIn {
+      0%   { opacity: 0; transform: translateY(16px) scale(0.9); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .pref-card:nth-child(6n+1) { animation-delay: 0s; }
+    .pref-card:nth-child(6n+2) { animation-delay: 0.04s; }
+    .pref-card:nth-child(6n+3) { animation-delay: 0.08s; }
+    .pref-card:nth-child(6n+4) { animation-delay: 0.12s; }
+    .pref-card:nth-child(6n+5) { animation-delay: 0.16s; }
+    .pref-card:nth-child(6n+6) { animation-delay: 0.20s; }
+
+    /* ===== List Items ===== */
+    .list-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      cursor: pointer;
+      transition: all 0.2s;
+      gap: 12px;
+      animation: listIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+      position: relative;
+    }
+    .list-item::after {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--accent);
+      border-radius: 0 2px 2px 0;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .list-item:active { background: rgba(59,130,246,0.06); }
+    .list-item:active::after { opacity: 1; }
+    .li-main { flex: 1; min-width: 0; }
+    .li-name {
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .li-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
+    .li-count {
+      font-size: 11px;
+      color: var(--cyan);
+      background: rgba(34,211,238,0.08);
+      border: 1px solid rgba(34,211,238,0.15);
+      padding: 3px 10px;
+      border-radius: 12px;
+      flex-shrink: 0;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .li-arrow { color: var(--text3); font-size: 14px; flex-shrink: 0; }
+    @keyframes listIn {
+      0%   { opacity: 0; transform: translateX(-12px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ===== Town List ===== */
+    .town-list-header {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      background: rgba(15, 23, 42, 0.8);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid rgba(59,130,246,0.12);
+      font-size: 11px;
+      color: var(--text3);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .th-name { flex: 2; min-width: 0; }
+    .th-stat { width: 52px; text-align: right; flex-shrink: 0; font-size: 11px; padding: 0 2px; }
+    .th-pct  { width: 42px; text-align: right; flex-shrink: 0; font-size: 11px; padding: 0 2px; }
+
+    .town-row {
+      display: flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 4px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      cursor: pointer;
+      transition: all 0.15s;
+      gap: 4px;
+      text-decoration: none;
+      color: inherit;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .town-row:active { background: rgba(59,130,246,0.08); }
+    .town-row:nth-child(even) { background: rgba(255,255,255,0.018); }
+    .town-row:nth-child(even):active { background: rgba(59,130,246,0.08); }
+    .town-name {
+      flex: 2;
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .town-val {
+      width: 52px;
+      text-align: right;
+      font-size: 12px;
+      color: var(--text2);
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+      padding: 0 2px;
+    }
+    .town-pct {
+      width: 42px;
+      text-align: right;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+      padding: 0 2px;
+    }
+    .pct-green        { color: #4ade80; text-shadow: 0 0 8px rgba(74,222,128,0.3); }
+    .pct-yellow-green { color: #a3e635; text-shadow: 0 0 8px rgba(163,230,53,0.2); }
+    .pct-orange       { color: #fbbf24; text-shadow: 0 0 8px rgba(251,191,36,0.2); }
+    .pct-red          { color: #f87171; text-shadow: 0 0 8px rgba(248,113,113,0.2); }
+    .pct-none         { color: var(--text3); }
+    .th-sort {
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: rgba(59,130,246,0.3);
+      transition: all 0.15s;
+    }
+    .th-sort:active { color: var(--accent2); }
+
+    /* ===== ハイライト ===== */
+    @keyframes highlight {
+      0%   { background-color: rgba(59, 130, 246, 0.25); }
+      100% { background-color: transparent; }
+    }
+    .town-row.highlighted { animation: highlight 1.5s ease-out forwards; }
+    .highlight-row { background: rgba(59,130,246,0.12) !important; box-shadow: inset 3px 0 0 var(--accent); }
+
+    /* ===== Loading ===== */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      color: var(--text3);
+      gap: 16px;
+      flex: 1;
+    }
+    .spinner-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px;
+      gap: 16px;
+      flex: 1;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(59,130,246,0.1);
+      border-top-color: var(--accent2);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-text { font-size: 12px; color: var(--text3); letter-spacing: 1px; }
+
+    /* ===== Empty / Error ===== */
+    .empty-state {
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--text3);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .empty-msg {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text3);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .empty-icon { font-size: 40px; margin-bottom: 8px; opacity: 0.5; }
+    .retry-btn {
+      margin-top: 16px;
+      background: linear-gradient(135deg, var(--accent) 0%, #06b6d4 100%);
+      color: #fff;
+      border: none;
+      padding: 10px 28px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 16px rgba(59,130,246,0.3);
+      font-family: inherit;
+    }
+    .retry-btn:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(59,130,246,0.4); }
+
+    /* ===== 画面遷移アニメーション ===== */
+    @keyframes fadeSlideIn {
+      0%   { opacity: 0; transform: translateX(40px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes fadeSlideBack {
+      0%   { opacity: 0; transform: translateX(-40px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ===== 配布リストモード ===== */
+    #dlContainer { position:fixed; top:0;left:0;right:0;bottom:0; overflow-y:auto; -webkit-overflow-scrolling:touch; background: linear-gradient(180deg, #080d1a 0%, #0c1425 50%, #080d1a 100%); z-index:9999; padding-top:var(--safe-top); padding-bottom:var(--safe-bottom); }
+    .dl-header { display:flex; align-items:center; gap:12px; padding:16px; background: linear-gradient(135deg, rgba(15,23,42,0.85) 0%, rgba(8,20,40,0.9) 100%); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); border-bottom:1px solid var(--glass-border); }
+    .dl-icon { font-size:28px; }
+    .dl-title { font-size:17px; font-weight:700; background: linear-gradient(135deg, #f1f5f9 0%, #22d3ee 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .dl-sub { font-size:12px; color:var(--text3); margin-top:2px; }
+    .dl-stats-row { display:flex; gap:8px; padding:12px 16px; }
+    .dl-stat-card { flex:1; background:var(--glass-bg); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border:1px solid var(--glass-border); border-radius:12px; padding:10px 8px; text-align:center; box-shadow: 0 2px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.04); }
+    .dl-stat-num { font-size:18px; font-weight:700; color:var(--cyan); }
+    .dl-stat-label { font-size:10px; color:var(--text3); margin-top:2px; }
+    .dl-table-header { display:flex; align-items:center; padding:6px 16px; background:rgba(15,23,42,0.85); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); border-bottom:1px solid var(--glass-border); font-size:11px; color:var(--text3); font-weight:600; position:sticky; top:0; z-index:10; }
+    .dl-th-name { flex:2; min-width:0; }
+    .dl-th-num { width:52px; text-align:right; flex-shrink:0; padding:0 2px; }
+    .dl-th-sm  { width:36px; text-align:right; flex-shrink:0; padding:0 2px; }
+    .dl-admin-hd { position:static; }
+    .dl-row { display:flex; align-items:center; min-height:34px; padding:4px 16px; border-bottom:1px solid rgba(255,255,255,0.04); text-decoration:none; color:inherit; gap:4px; cursor:pointer; transition:background 0.15s; }
+    .dl-row:active { background:rgba(59,130,246,0.06); }
+    .dl-row:nth-child(even) { background: rgba(255,255,255,0.018); }
+    .dl-name { flex:2; min-width:0; }
+    .dl-moji { font-size:12px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .dl-city { font-size:11px; color:var(--text3); margin-top:1px; }
+    .dl-val { width:52px; text-align:right; font-size:13px; color:var(--text2); font-variant-numeric:tabular-nums; flex-shrink:0; padding:0 2px; }
+    .dl-sm  { width:36px; font-size:13px; padding:0 2px; }
+    .dl-count { color:var(--cyan); font-weight:700; }
+    .dl-hint { text-align:center; font-size:12px; color:var(--text3); padding:20px 16px; }
+    .dl-tab-bar { display:flex; overflow-x:auto; background:rgba(15,23,42,0.8); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); border-bottom:1px solid var(--glass-border); position:sticky; top:0; z-index:20; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    .dl-tab-bar::-webkit-scrollbar { display:none; }
+    .dl-tab { flex-shrink:0; padding:10px 14px; font-size:13px; font-weight:500; color:var(--text2); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; display:flex; align-items:center; gap:5px; white-space:nowrap; transition:all 0.2s; }
+    .dl-tab.active { color:var(--cyan); border-bottom-color:var(--cyan); background:rgba(34,211,238,0.05); }
+    .dl-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; box-shadow: 0 0 6px currentColor; }
+    .dl-section { margin-bottom:4px; }
+    .dl-section-hd { display:flex; align-items:center; gap:8px; padding:10px 16px; background:rgba(15,23,42,0.6); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border-bottom:1px solid rgba(34,211,238,0.1); font-size:13px; }
+    .dl-section-meta { margin-left:auto; font-size:12px; color:var(--text3); }
+    .dl-kinshi { margin:10px 0 4px; border-top:1px solid var(--glass-border); }
+    .dl-kinshi-title { padding:12px 16px 6px; font-size:14px; font-weight:700; color:var(--text); }
+    .dl-kinshi-empty { padding:12px 16px 18px; font-size:13px; color:var(--text3); }
+    .dl-kinshi-item { display:block; padding:10px 16px; border-top:1px solid rgba(255,255,255,0.06); text-decoration:none; color:inherit; }
+    .dl-kinshi-item:active { background:rgba(239,68,68,0.08); }
+    .dl-kinshi-name { font-size:14px; font-weight:700; line-height:1.45; }
+    .dl-kinshi-addr { margin-top:2px; font-size:12px; color:var(--text2); line-height:1.45; }
+    .dl-kinshi-staff { margin-top:2px; font-size:11px; color:var(--text3); line-height:1.4; }
+    .dl-auth { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100dvh; padding:40px 32px; gap:16px; text-align:center; }
+    .dl-auth-icon { font-size:48px; }
+    .dl-auth-title { font-size:20px; font-weight:700; }
+    .dl-auth-sub { font-size:14px; color:var(--text3); }
+    .dl-pw-input { background:var(--glass-bg); border:2px solid var(--glass-border); border-radius:var(--radius); color:var(--text); font-size:28px; letter-spacing:10px; text-align:center; padding:14px 20px; width:180px; outline:none; font-family:inherit; }
+    .dl-pw-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+    .dl-pw-error { font-size:13px; color:var(--red); min-height:20px; }
+    .dl-val.pct-green        { color: #4ade80; }
+    .dl-val.pct-yellow-green { color: #a3e635; }
+    .dl-val.pct-orange       { color: #fbbf24; }
+    .dl-val.pct-red          { color: #f87171; }
+    .dl-val.pct-none         { color: var(--text2); }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <button class="back-btn" id="backBtn" onclick="goBack()">‹</button>
+    <h1 id="headerTitle">世帯数ビューア</h1>
+    <span class="header-sub" id="headerSub">全国版</span>
+  </div>
+  <div class="search-wrap">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-input" id="searchInput"
+             placeholder="町名を検索（府県選択後）..." autocomplete="off">
+      <button class="clear-btn" id="searchClear" onclick="clearSearch()">✕</button>
+    </div>
+    <div class="suggest-list" id="suggestList"></div>
+  </div>
+  <div class="content" id="content">
+    <div class="loading"><div class="spinner"></div><div>読み込み中...</div></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   世帯数ビューア 全国版 PWA
+   data/index.json + data/XX.json の遅延読み込み構成
+============================================================ */
+
+// ---- State ----
+var prefList      = [];   // [{code, name, areas}, ...]  ← index.json
+var areasByPref   = {};   // {prefCode: [{c,ct,w,m,s,k,ky,la,lo}, ...]}
+var loadedPrefs   = {};   // {prefCode: true}
+var navStack        = [];   // [{view, params}, ...]
+var forwardStack    = [];   // [{view, params}, ...]  ← 進む用
+var currentView     = null;
+var pendingScrollTo = null; // KEY_CODE (c) of area to scroll to
+var suggestData     = [];   // [{a, prefCode, prefName}, ...]
+var townSortKey     = 'm';  // 'm'|'s'|'k'|'ky'|'pct'
+var townSortAsc     = true;
+var currentTownParams = null;
+
+// ---- Init ----
+async function init() {
+  try {
+    var res = await fetch('data/index.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    prefList = data.prefectures || [];
+    showPrefView();
+  } catch (e) {
+    document.getElementById('content').innerHTML =
+      '<div class="empty-state"><div class="empty-icon">⚠️</div>'
+      + 'データの読み込みに失敗しました<br><br>'
+      + '<button class="retry-btn" onclick="location.reload()">再読み込み</button></div>';
+  }
+}
+
+// ---- Data Loading ----
+async function ensurePrefLoaded(prefCode) {
+  if (loadedPrefs[prefCode]) return;
+  var res = await fetch('data/' + prefCode + '.json');
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  areasByPref[prefCode] = await res.json();
+  loadedPrefs[prefCode] = true;
+}
+
+// ---- Navigation ----
+function navigate(view, params) {
+  if (currentView) navStack.push({view: currentView, params: currentView._params});
+  forwardStack = [];
+  showView(view, params);
+  updateBackBtn();
+}
+
+function goBack() {
+  if (navStack.length === 0) return;
+  forwardStack.push({view: currentView, params: currentView._params});
+  var prev = navStack.pop();
+  currentView = prev.view;
+  currentView._params = prev.params;
+  var el = document.getElementById('content');
+  el.scrollTop = 0;
+  el.innerHTML = '';
+  el.style.animation = 'none';
+  el.offsetHeight; // reflow
+  el.style.animation = 'fadeSlideBack 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+  prev.view(prev.params);
+  updateBackBtn();
+}
+
+function goForward() {
+  if (forwardStack.length === 0) return;
+  navStack.push({view: currentView, params: currentView._params});
+  var next = forwardStack.pop();
+  showView(next.view, next.params);
+  updateBackBtn();
+}
+
+function updateBackBtn() {
+  document.getElementById('backBtn').classList.toggle('visible', navStack.length > 0);
+}
+
+function showView(view, params) {
+  currentView = view;
+  currentView._params = params;
+  var el = document.getElementById('content');
+  el.scrollTop = 0;
+  el.innerHTML = '';
+  el.style.animation = 'none';
+  el.offsetHeight; // reflow
+  el.style.animation = 'fadeSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
+  view(params);
+}
+
+// ---- Views ----
+
+// 都道府県一覧
+function showPrefView() {
+  document.getElementById('headerTitle').textContent = '世帯数ビューア';
+  document.getElementById('headerSub').textContent = '';
+  navStack = [];
+  currentView = showPrefView;
+  currentView._params = null;
+  updateBackBtn();
+
+  var html = '<div class="pref-grid">';
+  prefList.forEach(function(p) {
+    var cls = '';
+    html += '<div class="pref-card' + cls + '" data-code="' + p.code + '" onclick="tapPref(\'' + p.code + '\')">'
+      + '<div class="pref-name">' + esc(p.name) + '</div>'
+      + '<div class="pref-areas">' + fmtNum(p.areas) + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  document.getElementById('content').innerHTML = html;
+}
+
+// 都道府県タップ → データ読み込み → 市区町村
+async function tapPref(prefCode) {
+  if (loadedPrefs[prefCode]) {
+    navigate(showCityView, prefCode);
+    return;
+  }
+  document.getElementById('content').innerHTML =
+    '<div class="loading"><div class="spinner"></div><div>読み込み中...</div></div>';
+  try {
+    await ensurePrefLoaded(prefCode);
+    navigate(showCityView, prefCode);
+  } catch (e) {
+    var code = prefCode;
+    document.getElementById('content').innerHTML =
+      '<div class="empty-state"><div class="empty-icon">⚠️</div>'
+      + '読み込みに失敗しました<br><br>'
+      + '<button class="retry-btn" onclick="tapPref(\'' + code + '\')">再試行</button></div>';
+  }
+}
+
+// 市区町村一覧
+function showCityView(prefCode) {
+  var pref = findPref(prefCode);
+  document.getElementById('headerTitle').textContent = pref ? pref.name : prefCode;
+  document.getElementById('headerSub').textContent = '';
+
+  var areas = areasByPref[prefCode] || [];
+  var cities = {};
+  areas.forEach(function(a) {
+    var key = a.ct || '不明';
+    if (!cities[key]) cities[key] = {name: key, count: 0, hasWard: false};
+    cities[key].count++;
+    if (a.w) cities[key].hasWard = true;
+  });
+
+  var sorted = Object.values(cities).sort(function(a, b) {
+    return a.name.localeCompare(b.name, 'ja');
+  });
+
+  var html = '';
+  sorted.forEach(function(c) {
+    var destView  = c.hasWard ? 'showWardView' : 'showTownView';
+    var destParam = c.hasWard
+      ? '{prefCode:\'' + prefCode + '\',city:\'' + jsStr(c.name) + '\'}'
+      : '{prefCode:\'' + prefCode + '\',city:\'' + jsStr(c.name) + '\',ward:\'\'}';
+    html += '<div class="list-item" onclick="navigate(' + destView + ',' + destParam + ')">'
+      + '<div class="li-main"><div class="li-name">' + esc(c.name) + '</div></div>'
+      + '<span class="li-count">' + fmtNum(c.count) + '</span>'
+      + '<span class="li-arrow">›</span></div>';
+  });
+  if (!html) html = '<div class="empty-state"><div class="empty-icon">📭</div>データがありません</div>';
+  document.getElementById('content').innerHTML = html;
+}
+
+// 区一覧（政令市）
+function showWardView(params) {
+  var pref = findPref(params.prefCode);
+  document.getElementById('headerTitle').textContent = params.city;
+  document.getElementById('headerSub').textContent = pref ? pref.name : '';
+
+  var areas = areasByPref[params.prefCode] || [];
+  var wards = {};
+  areas.forEach(function(a) {
+    if (a.ct !== params.city) return;
+    var key = a.w || '（区なし）';
+    if (!wards[key]) wards[key] = {name: key, count: 0};
+    wards[key].count++;
+  });
+
+  var sorted = Object.values(wards).sort(function(a, b) {
+    return a.name.localeCompare(b.name, 'ja');
+  });
+
+  var html = '';
+  sorted.forEach(function(w) {
+    var wardVal = (w.name === '（区なし）') ? '' : w.name;
+    html += '<div class="list-item" onclick="navigate(showTownView,{prefCode:\'' + params.prefCode + '\',city:\'' + jsStr(params.city) + '\',ward:\'' + jsStr(wardVal) + '\'})">'
+      + '<div class="li-main"><div class="li-name">' + esc(w.name) + '</div></div>'
+      + '<span class="li-count">' + fmtNum(w.count) + '</span>'
+      + '<span class="li-arrow">›</span></div>';
+  });
+  if (!html) html = '<div class="empty-state"><div class="empty-icon">📭</div>データがありません</div>';
+  document.getElementById('content').innerHTML = html;
+}
+
+// 町丁目一覧（1行表示）
+function showTownView(params) {
+  var pref = findPref(params.prefCode);
+  document.getElementById('headerTitle').textContent = params.ward || params.city;
+  document.getElementById('headerSub').textContent = params.ward ? params.city : (pref ? pref.name : '');
+  townSortKey = 'm';
+  townSortAsc = true;
+  currentTownParams = params;
+  renderTownContent(params);
+}
+
+function sortTown(key) {
+  if (townSortKey === key) {
+    townSortAsc = !townSortAsc;
+  } else {
+    townSortKey = key;
+    townSortAsc = (key === 'm');  // 名前は昇順、数値は降順をデフォルト
+  }
+  renderTownContent(currentTownParams);
+}
+
+function renderTownContent(params) {
+  var pref     = findPref(params.prefCode);
+  var prefName = pref ? pref.name : '';
+  var areas    = areasByPref[params.prefCode] || [];
+  var towns    = areas.filter(function(a) {
+    return a.ct === params.city && (a.w || '') === (params.ward || '');
+  });
+
+  if (towns.length === 0) {
+    document.getElementById('content').innerHTML =
+      '<div class="empty-state"><div class="empty-icon">📭</div>データがありません</div>';
+    return;
+  }
+
+  // ソート
+  towns = towns.slice().sort(function(a, b) {
+    var cmp;
+    if (townSortKey === 'm') {
+      cmp = compareTownName(a.m, b.m);
+    } else if (townSortKey === 'pct') {
+      var pa = a.s > 0 ? a.ky / a.s : -1;
+      var pb = b.s > 0 ? b.ky / b.s : -1;
+      cmp = pa - pb;
+    } else {
+      cmp = (a[townSortKey] || 0) - (b[townSortKey] || 0);
+    }
+    return townSortAsc ? cmp : -cmp;
+  });
+
+  // ヘッダー（ソートインジケーター付き）
+  var ind = {m: '', s: '', k: '', ky: '', pct: ''};
+  ind[townSortKey] = townSortAsc ? ' ▲' : ' ▼';
+
+  var html = '<div class="town-list-header">'
+    + '<span class="th-name th-sort" onclick="sortTown(\'m\')">町丁目' + ind.m + '</span>'
+    + '<span class="th-stat th-sort" onclick="sortTown(\'s\')">総世帯' + ind.s + '</span>'
+    + '<span class="th-stat th-sort" onclick="sortTown(\'k\')">戸建' + ind.k + '</span>'
+    + '<span class="th-stat th-sort" onclick="sortTown(\'ky\')">集合' + ind.ky + '</span>'
+    + '<span class="th-pct th-sort" onclick="sortTown(\'pct\')">集合%' + ind.pct + '</span>'
+    + '</div>';
+
+  towns.forEach(function(t) {
+    var pct    = t.s > 0 ? (t.ky / t.s * 100) : -1;
+    var pctStr = pct < 0 ? '-' : pct.toFixed(0) + '%';
+    var pctCls = pct < 0    ? 'pct-none'
+               : pct >= 80  ? 'pct-green'
+               : pct >= 60  ? 'pct-yellow-green'
+               : pct >= 40  ? 'pct-orange'
+               : 'pct-red';
+    var q = encodeURIComponent(prefName + t.ct + (t.w || '') + t.m);
+    html += '<a class="town-row" data-code="' + t.c + '"'
+      + ' href="https://www.google.com/maps/search/' + q + '" target="_blank" rel="noopener noreferrer">'
+      + '<div class="town-name" style="font-size:' + (t.m.length <= 10 ? '13px' : t.m.length <= 14 ? '11px' : '10px') + '">' + esc(t.m) + '</div>'
+      + '<div class="town-val">' + fmtNum(t.s) + '</div>'
+      + '<div class="town-val">' + fmtNum(t.k) + '</div>'
+      + '<div class="town-val">' + fmtNum(t.ky) + '</div>'
+      + '<div class="town-pct ' + pctCls + '">' + pctStr + '</div>'
+      + '</a>';
+  });
+
+  document.getElementById('content').innerHTML = html;
+
+  if (pendingScrollTo !== null) {
+    var targetEl = document.querySelector('.town-row[data-code="' + pendingScrollTo + '"]');
+    if (targetEl) {
+      setTimeout(function() {
+        targetEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+        targetEl.classList.add('highlighted');
+        setTimeout(function() { targetEl.classList.remove('highlighted'); }, 1500);
+      }, 100);
+    }
+    pendingScrollTo = null;
+  }
+}
+
+// ---- Search ----
+var searchInput    = document.getElementById('searchInput');
+var suggestListEl  = document.getElementById('suggestList');
+var searchClearBtn = document.getElementById('searchClear');
+var searchDebounce = null;
+
+searchInput.addEventListener('input', function() {
+  clearTimeout(searchDebounce);
+  var q = this.value.trim();
+  searchClearBtn.classList.toggle('visible', q.length > 0);
+  if (q.length < 1) { suggestListEl.classList.remove('visible'); return; }
+  searchDebounce = setTimeout(function() { doSuggest(q); }, 120);
+});
+
+searchInput.addEventListener('focus', function() {
+  var q = this.value.trim();
+  if (q.length >= 1) doSuggest(q);
+});
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.search-wrap')) suggestListEl.classList.remove('visible');
+});
+
+function clearSearch() {
+  searchInput.value = '';
+  searchClearBtn.classList.remove('visible');
+  suggestListEl.classList.remove('visible');
+}
+
+function doSuggest(query) {
+  var q = query.toLowerCase();
+  suggestData = [];
+
+  var loadedCodes = Object.keys(loadedPrefs);
+  var hasUnloaded = prefList.length > loadedCodes.length;
+
+  for (var pi = 0; pi < loadedCodes.length && suggestData.length < 30; pi++) {
+    var prefCode = loadedCodes[pi];
+    var pref     = findPref(prefCode);
+    var prefName = pref ? pref.name : '';
+    var areas    = areasByPref[prefCode] || [];
+    for (var i = 0; i < areas.length && suggestData.length < 30; i++) {
+      var a = areas[i];
+      if ((a.ct + a.w + a.m).toLowerCase().indexOf(q) !== -1) {
+        suggestData.push({a: a, prefCode: prefCode, prefName: prefName});
+      }
+    }
+  }
+
+  var html = '';
+  if (loadedCodes.length === 0) {
+    html = '<div class="suggest-hint">都道府県を選択してから検索してください</div>';
+  } else if (suggestData.length === 0) {
+    html = '<div class="suggest-hint">該当なし（読み込み済み府県内）</div>';
+  } else {
+    suggestData.forEach(function(r, i) {
+      html += '<div class="suggest-item" onclick="selectSuggest(' + i + ')">'
+        + '<div class="s-name">' + esc(r.a.m) + '</div>'
+        + '<div class="s-path">' + esc(r.prefName + ' ' + r.a.ct + (r.a.w ? ' ' + r.a.w : ''))
+        + ' — 世帯 ' + fmtNum(r.a.s) + '</div>'
+        + '</div>';
+    });
+  }
+  if (hasUnloaded) {
+    html += '<div class="suggest-hint">※ 他の都道府県は選択後に検索可能</div>';
+  }
+  suggestListEl.innerHTML = html;
+  suggestListEl.classList.add('visible');
+}
+
+function selectSuggest(i) {
+  var r = suggestData[i];
+  if (!r) return;
+  suggestListEl.classList.remove('visible');
+  searchInput.value = '';
+  searchClearBtn.classList.remove('visible');
+  searchInput.blur();
+
+  pendingScrollTo = r.a.c;  // KEY_CODE で該当行を特定
+  navigate(showTownView, {prefCode: r.prefCode, city: r.a.ct, ward: r.a.w || ''});
+}
+
+// ---- Swipe Back ----
+var touchStartX = 0;
+var touchStartY = 0;
+
+document.addEventListener('touchstart', function(e) {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, {passive: true});
+
+document.addEventListener('touchend', function(e) {
+  var dx = e.changedTouches[0].clientX - touchStartX;
+  var dy = e.changedTouches[0].clientY - touchStartY;
+  if (Math.abs(dx) < 60 || Math.abs(dy) / Math.abs(dx) >= 0.6) return;
+  if (dx > 0 && navStack.length > 0)     goBack();     // 右スワイプ＝戻る
+  if (dx < 0 && forwardStack.length > 0) goForward();  // 左スワイプ＝進む
+}, {passive: true});
+
+// ---- Utilities ----
+function findPref(code) {
+  for (var i = 0; i < prefList.length; i++) {
+    if (prefList[i].code === code) return prefList[i];
+  }
+  return null;
+}
+
+function fmtNum(n) {
+  return Number(n || 0).toLocaleString('ja-JP');
+}
+
+// HTML エスケープ（表示用）
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// JS文字列リテラル内エスケープ（onclickのシングルクォート文字列用）
+function jsStr(s) {
+  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+// ============================================================
+//  配布リストモード
+// ============================================================
+var STAFF_COLORS = ['#4285F4','#EA4335','#34A853','#FF6D01','#AB47BC','#00ACC1','#FFB300','#8D6E63','#546E7A','#E91E63'];
+var _adminCtx = null;
+var _adminTab = 0;
+var _dlStaffSortKey = 'm', _dlStaffSortAsc = true;
+var _dlAdminSortKey = 'm', _dlAdminSortAsc = true;
+var _staffCtx = null;
+
+async function startDistribMode() {
+  var params = new URLSearchParams(location.search);
+
+  // ★ セッションID方式（新方式: ?s=ID）
+  var sessionId = params.get('s');
+  if (sessionId) {
+    try {
+      var res = await fetch('data/sessions/' + sessionId + '.json');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var session = await res.json();
+      // 暗号化形式（v2）: 鍵はURLの # 以降にだけあり、サーバーにもリポジトリにも残らない
+      if (session && session.v === 2) {
+        var hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+        var key = hashParams.get('k');
+        if (!key) throw new Error('リンクが不完全です（# 以降が欠けています）');
+        session = await decryptSession(session, key);
+      }
+      try { var r = await fetch('data/index.json'); prefList = (await r.json()).prefectures || []; } catch(e) {}
+      var prefCodes = (session.pref || '').split(',').map(function(s){return s.trim().padStart(2,'0');}).filter(Boolean);
+      var areas = [];
+      for (var i = 0; i < prefCodes.length; i++) {
+        try { var r2 = await fetch('data/' + prefCodes[i] + '.json'); areas = areas.concat(await r2.json()); } catch(e) {}
+      }
+      document.querySelector('.app').style.display = 'none';
+      if (session.mode === 'admin') {
+        showAdminAuth(areas, prefCodes, session.d || '', session.pw || '', session.kinshi || []);
+      } else {
+        showStaffView(parseDRows(session.d || '', prefCodes, areas), prefCodes, session.kinshi || [], session.staffName || '');
+      }
+      return;
+    } catch(e) {
+      document.querySelector('.app').style.display = 'none';
+      dlShow('<div class="empty-state"><div class="empty-icon">⚠️</div>セッションデータの読み込みに失敗しました<br><small>' + esc(e.message) + '</small><br><br><button class="retry-btn" onclick="location.reload()">再読み込み</button></div>');
+      return;
+    }
+  }
+
+  // ★ 旧方式（?mode=staff&d=... または ?mode=admin&d=...&pw=...）
+  var mode = params.get('mode');
+  if (!mode) { init(); return; }
+  try { var r = await fetch('data/index.json'); prefList = (await r.json()).prefectures || []; } catch(e) {}
+  var prefCodes = (params.get('pref') || '').split(',').map(function(s){return s.trim().padStart(2,'0');}).filter(Boolean);
+  var dParam = params.get('d') || '';
+  var areas = [];
+  for (var i = 0; i < prefCodes.length; i++) {
+    try { var res = await fetch('data/' + prefCodes[i] + '.json'); areas = areas.concat(await res.json()); } catch(e) {}
+  }
+  document.querySelector('.app').style.display = 'none';
+  if (mode === 'staff') { showStaffView(parseDRows(dParam, prefCodes, areas), prefCodes, [], ''); }
+  else if (mode === 'admin') { showAdminAuth(areas, prefCodes, dParam, params.get('pw') || '', []); }
+}
+
+// ---- 配布指示の復号（AES-256-GCM, 鍵はURLの #k= にbase64url） ----
+function b64urlToBytes(str) {
+  var b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4) b64 += '=';
+  var bin = atob(b64);
+  var out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function decryptSession(enc, keyStr) {
+  var raw = b64urlToBytes(keyStr);
+  if (raw.length !== 32) throw new Error('リンクの鍵が正しくありません');
+  var key = await crypto.subtle.importKey('raw', raw, {name: 'AES-GCM'}, false, ['decrypt']);
+  var plain;
+  try {
+    plain = await crypto.subtle.decrypt({name: 'AES-GCM', iv: b64urlToBytes(enc.iv)}, key, b64urlToBytes(enc.ct));
+  } catch(e) {
+    throw new Error('リンクの鍵が一致しません');
+  }
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+function parseDRows(dParam, prefCodes, areas) {
+  var rows = [];
+  if (!dParam) return rows;
+  dParam.split(',').forEach(function(item) {
+    var parts = item.trim().split(':');
+    var key = parts[0].trim();
+    if (!key) return;
+    var count = parts.length >= 2 ? parseInt(parts[1], 10) : 0;
+    if (isNaN(count)) count = 0;
+    for (var pi = 0; pi < prefCodes.length; pi++) {
+      var area = findAreaByCode(areas, prefCodes[pi] + key);
+      if (area) { rows.push({area:area, count:count}); return; }
+    }
+  });
+  return rows;
+}
+
+function parseAdminD(dParam, prefCodes, areas) {
+  var map = new Map();
+  if (!dParam) return map;
+  dParam.split(';').forEach(function(sec) {
+    sec = sec.trim();
+    var ci = sec.indexOf(':');
+    if (ci < 0) return;
+    var num = parseInt(sec.substring(0, ci), 10);
+    if (isNaN(num)) return;
+    map.set(num, parseDRows(sec.substring(ci + 1), prefCodes, areas));
+  });
+  return map;
+}
+
+function findAreaByCode(areas, code) {
+  for (var i = 0; i < areas.length; i++) { if (areas[i].c === code) return areas[i]; }
+  return null;
+}
+
+function getPrefName(prefCode) { var p = findPref(prefCode); return p ? p.name : ''; }
+
+function dlMapUrl(a) {
+  return 'https://www.google.com/maps/search/' + encodeURIComponent(getPrefName(a.c.substring(0,2)) + a.ct + (a.w||'') + a.m);
+}
+
+function dlShow(html) {
+  var el = document.getElementById('dlContainer');
+  if (!el) { el = document.createElement('div'); el.id = 'dlContainer'; document.body.appendChild(el); }
+  el.innerHTML = html;
+}
+
+function dlStatCard(num, label) {
+  return '<div class="dl-stat-card"><div class="dl-stat-num">'+num+'</div><div class="dl-stat-label">'+label+'</div></div>';
+}
+
+function normalizeKinshiList(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map(function(k) {
+    var lat = Number(k && k.lat);
+    var lng = Number(k && k.lng);
+    return {
+      name: String((k && k.name) || '').trim(),
+      addr: String((k && (k.addr || k.address || k.fullAddress)) || '').trim(),
+      staffName: String((k && k.staffName) || '').trim(),
+      lat: isFinite(lat) ? lat : null,
+      lng: isFinite(lng) ? lng : null
+    };
+  }).filter(function(k) { return k.name || k.addr; });
+}
+
+function kinshiMapUrl(k) {
+  if (k.lat !== null && k.lng !== null) {
+    return 'https://www.google.com/maps?q=' + encodeURIComponent(k.lat + ',' + k.lng);
+  }
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(k.addr || k.name);
+}
+
+function renderKinshiSection(list, isAdmin) {
+  var kinshi = normalizeKinshiList(list);
+  var empty = isAdmin ? '禁止物件はありません' : 'この担当エリア内の禁止物件はありません';
+  var html = '<div class="dl-kinshi"><div class="dl-kinshi-title">禁止物件 ' + kinshi.length + '件</div>';
+  if (kinshi.length === 0) return html + '<div class="dl-kinshi-empty">' + empty + '</div></div>';
+  kinshi.forEach(function(k) {
+    html += '<a class="dl-kinshi-item" href="' + kinshiMapUrl(k) + '" target="_blank" rel="noopener noreferrer">'
+      + (k.name ? '<div class="dl-kinshi-name">' + esc(k.name) + '</div>' : '')
+      + (k.addr ? '<div class="dl-kinshi-addr">' + esc(k.addr) + '</div>' : '')
+      + (isAdmin && k.staffName ? '<div class="dl-kinshi-staff">担当：' + esc(k.staffName) + '</div>' : '')
+      + '</a>';
+  });
+  return html + '</div>';
+}
+
+function dlNameCell(a) {
+  var len = a.m.length;
+  var fs = len <= 10 ? '15px' : len <= 14 ? '13px' : '11px';
+  return '<div class="dl-name"><div class="dl-moji" style="font-size:'+fs+'">'+esc(a.m)+'</div><div class="dl-city">'+esc(a.ct+(a.w?' '+a.w:''))+'</div></div>';
+}
+
+function dlPctCls(a) {
+  if (!a.s) return 'pct-none';
+  var r = a.ky / a.s;
+  return r >= 0.8 ? 'pct-green' : r >= 0.6 ? 'pct-yellow-green' : r >= 0.4 ? 'pct-orange' : 'pct-red';
+}
+
+function kanjiToNum(s) {
+  var map = {'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10};
+  s = s.replace('丁目', '');
+  if (s.length === 1) return map[s] || 0;
+  var n = 0;
+  for (var i = 0; i < s.length; i++) {
+    if (s[i] === '十') {
+      if (n === 0) n = 1;
+      n *= 10;
+    } else {
+      if (i > 0 && s[i-1] === '十') n += map[s[i]] || 0;
+      else n = map[s[i]] || 0;
+    }
+  }
+  return n;
+}
+
+function compareTownName(a, b) {
+  var re = /^(.+?)([一二三四五六七八九十]+丁目)$/;
+  var ma = a.match(re);
+  var mb = b.match(re);
+  if (ma && mb && ma[1] === mb[1]) {
+    return kanjiToNum(ma[2]) - kanjiToNum(mb[2]);
+  }
+  return a.localeCompare(b, 'ja');
+}
+
+function dlSortRows(rows, key, asc) {
+  return rows.slice().sort(function(x, y) {
+    var va, vb;
+    if (key === 'm') { var cm = compareTownName(x.area.m, y.area.m); return asc ? cm : -cm; }
+    if      (key === 'cnt') { va = x.count;   vb = y.count; }
+    else if (key === 's')   { va = x.area.s;  vb = y.area.s; }
+    else if (key === 'k')   { va = x.area.k;  vb = y.area.k; }
+    else if (key === 'ky')  { va = x.area.ky; vb = y.area.ky; }
+    else if (key === 'pct') { va = x.area.s ? x.area.ky/x.area.s : -1; vb = y.area.s ? y.area.ky/y.area.s : -1; }
+    else                    { va = 0; vb = 0; }
+    return asc ? va - vb : vb - va;
+  });
+}
+
+function dlTh(label, key, cls, sortKey, sortAsc, sortFn) {
+  var active = key === sortKey;
+  var ind = active ? (sortAsc ? '▲' : '▼') : '';
+  var style = 'cursor:pointer;white-space:nowrap;overflow:hidden;' + (active ? 'text-decoration:underline dotted;' : '');
+  return '<span class="'+(cls||'dl-th-sm')+'" style="'+style+'" onclick="'+sortFn+'(\''+key+'\')">'+label+ind+'</span>';
+}
+
+function showStaffView(rows, prefCodes, kinshi, staffName) {
+  _dlStaffSortKey = 'm'; _dlStaffSortAsc = true;
+  _staffCtx = {rows: rows, prefCodes: prefCodes, kinshi: normalizeKinshiList(kinshi), staffName: staffName || ''};
+  var ts=0;
+  rows.forEach(function(r){ts+=r.area.s;});
+  var prefName = prefCodes.map(getPrefName).join('・');
+  var wrapper = '<div class="dl-wrap"><div class="dl-header"><span class="dl-icon">📋</span><div><div class="dl-title">配布リスト</div><div class="dl-sub">'+esc(prefName)+'</div></div></div>'
+    +'<div class="dl-stats-row">'+dlStatCard(fmtNum(ts),'世帯合計')+dlStatCard(String(rows.length),'エリア数')+'</div>'
+    +(rows.length ? '<div id="dlStaffTable"></div>' : '<div class="empty-state"><div class="empty-icon">📭</div>データがありません</div>')
+    +renderKinshiSection(_staffCtx.kinshi, false)
+    +'<div class="dl-hint">📍 町丁目タップ → Googleマップで確認</div></div>';
+  dlShow(wrapper);
+  if (rows.length) renderStaffTable();
+}
+
+function renderStaffTable() {
+  var sorted = dlSortRows(_staffCtx.rows, _dlStaffSortKey, _dlStaffSortAsc);
+  var html = '<div class="dl-table-header dl-admin-hd">'
+    +dlTh('町丁目','m','dl-th-name',_dlStaffSortKey,_dlStaffSortAsc,'dlStaffSort')
+    +dlTh('世帯','s',null,_dlStaffSortKey,_dlStaffSortAsc,'dlStaffSort')
+    +dlTh('戸建','k',null,_dlStaffSortKey,_dlStaffSortAsc,'dlStaffSort')
+    +dlTh('集合','ky',null,_dlStaffSortKey,_dlStaffSortAsc,'dlStaffSort')
+    +dlTh('集合%','pct',null,_dlStaffSortKey,_dlStaffSortAsc,'dlStaffSort')
+    +'</div>';
+  sorted.forEach(function(r){
+    var a=r.area, pct=a.s>0?(a.ky/a.s*100).toFixed(0)+'%':'-';
+    html+='<a class="dl-row" href="'+dlMapUrl(a)+'" target="_blank" rel="noopener noreferrer">'+dlNameCell(a)
+      +'<div class="dl-val dl-sm">'+fmtNum(a.s)+'</div>'
+      +'<div class="dl-val dl-sm">'+fmtNum(a.k)+'</div>'
+      +'<div class="dl-val dl-sm">'+fmtNum(a.ky)+'</div>'
+      +'<div class="dl-val dl-sm '+dlPctCls(a)+'">'+pct+'</div></a>';
+  });
+  document.getElementById('dlStaffTable').innerHTML = html;
+}
+
+function dlStaffSort(key) {
+  if (_dlStaffSortKey === key) _dlStaffSortAsc = !_dlStaffSortAsc;
+  else { _dlStaffSortKey = key; _dlStaffSortAsc = true; }
+  renderStaffTable();
+}
+
+function showAdminAuth(areas, prefCodes, dParam, pwHash, kinshi) {
+  window._dlAuth = {areas:areas, prefCodes:prefCodes, dParam:dParam, pwHash:pwHash, kinshi: normalizeKinshiList(kinshi)};
+  dlShow('<div class="dl-wrap dl-auth"><div class="dl-auth-icon">🔒</div><div class="dl-auth-title">管理者認証</div><div class="dl-auth-sub">パスワードを入力してください</div><input type="password" id="pwInput" class="dl-pw-input" maxlength="4" placeholder="••••" inputmode="numeric"><div id="pwError" class="dl-pw-error"></div><button class="retry-btn" onclick="checkAdminPw()">確認</button></div>');
+  var inp = document.getElementById('pwInput');
+  inp.addEventListener('keydown', function(e){if(e.key==='Enter')checkAdminPw();});
+  inp.focus();
+}
+
+async function checkAdminPw() {
+  var inp = document.getElementById('pwInput');
+  var err = document.getElementById('pwError');
+  err.textContent = '';
+  try {
+    var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(inp.value));
+    var hex = Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+    if (hex === window._dlAuth.pwHash) {
+      var ctx = window._dlAuth;
+      dlShow('');
+      showAdminView(ctx.areas, ctx.prefCodes, ctx.dParam, ctx.kinshi);
+    } else {
+      err.textContent = 'パスワードが違います';
+      inp.value = ''; inp.focus();
+    }
+  } catch(e) { err.textContent = 'エラーが発生しました'; }
+}
+
+function showAdminView(areas, prefCodes, dParam, kinshi) {
+  var staffMap = parseAdminD(dParam, prefCodes, areas);
+  var nums = Array.from(staffMap.keys()).sort(function(a,b){return a-b;});
+  var tc=0, ta=0;
+  nums.forEach(function(n){staffMap.get(n).forEach(function(r){tc+=r.count;ta++;});});
+  _adminCtx = {prefName:prefCodes.map(getPrefName).join('・'), staffMap:staffMap, nums:nums, totalCount:tc, totalAreas:ta, kinshi: normalizeKinshiList(kinshi)};
+  _adminTab = 0;
+  renderAdminView();
+}
+
+function renderAdminView() {
+  var ctx = _adminCtx;
+  var tabs = '<div class="dl-tab-bar"><div class="dl-tab'+((_adminTab===0)?' active':'')+'" onclick="switchTab(0)">全員</div>';
+  ctx.nums.forEach(function(n){
+    var col=STAFF_COLORS[(n-1)%STAFF_COLORS.length], act=_adminTab===n;
+    tabs+='<div class="dl-tab'+(act?' active':'')+'" style="'+(act?'color:'+col+';border-bottom-color:'+col:'')+'" onclick="switchTab('+n+')"><span class="dl-dot" style="background:'+col+'"></span>担当'+n+'</div>';
+  });
+  tabs += '</div>';
+  var body = '';
+  var show = _adminTab===0 ? ctx.nums : [_adminTab];
+  show.forEach(function(n){
+    var col=STAFF_COLORS[(n-1)%STAFF_COLORS.length], rows=ctx.staffMap.get(n)||[];
+    body+='<div class="dl-section"><div class="dl-section-hd" style="border-left:3px solid '+col+'"><span class="dl-dot" style="background:'+col+'"></span><strong>担当'+n+'</strong><span class="dl-section-meta">'+rows.length+'エリア</span></div>'+buildAdminTable(rows)+'</div>';
+  });
+  var kinshi = ctx.kinshi || [];
+  if (_adminTab !== 0) kinshi = kinshi.filter(function(k) { return k.staffName === '担当' + _adminTab; });
+  var html='<div class="dl-wrap"><div class="dl-header"><span class="dl-icon">📋</span><div><div class="dl-title">管理者ビュー</div><div class="dl-sub">'+esc(ctx.prefName)+'</div></div></div>'
+    +tabs+'<div class="dl-stats-row">'+dlStatCard(String(ctx.totalAreas),'エリア計')+dlStatCard(String(ctx.nums.length),'担当者数')+'</div>'
+    +'<div id="dlContent">'+body+renderKinshiSection(kinshi, true)+'</div></div>';
+  dlShow(html);
+}
+
+function buildAdminTable(rows) {
+  var sorted = dlSortRows(rows, _dlAdminSortKey, _dlAdminSortAsc);
+  var html = '<div class="dl-table-header dl-admin-hd">'
+    +dlTh('町丁目','m','dl-th-name',_dlAdminSortKey,_dlAdminSortAsc,'dlAdminSort')
+    +dlTh('世帯','s',null,_dlAdminSortKey,_dlAdminSortAsc,'dlAdminSort')
+    +dlTh('戸建','k',null,_dlAdminSortKey,_dlAdminSortAsc,'dlAdminSort')
+    +dlTh('集合','ky',null,_dlAdminSortKey,_dlAdminSortAsc,'dlAdminSort')
+    +dlTh('集合%','pct',null,_dlAdminSortKey,_dlAdminSortAsc,'dlAdminSort')
+    +'</div>';
+  if (!sorted.length) return html+'<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">なし</div>';
+  sorted.forEach(function(r){
+    var a=r.area, pct=a.s>0?(a.ky/a.s*100).toFixed(0)+'%':'-';
+    html+='<a class="dl-row" href="'+dlMapUrl(a)+'" target="_blank" rel="noopener noreferrer">'+dlNameCell(a)
+      +'<div class="dl-val dl-sm">'+fmtNum(a.s)+'</div>'
+      +'<div class="dl-val dl-sm">'+fmtNum(a.k)+'</div>'
+      +'<div class="dl-val dl-sm">'+fmtNum(a.ky)+'</div>'
+      +'<div class="dl-val dl-sm '+dlPctCls(a)+'">'+pct+'</div></a>';
+  });
+  return html;
+}
+
+function dlAdminSort(key) {
+  if (_dlAdminSortKey === key) _dlAdminSortAsc = !_dlAdminSortAsc;
+  else { _dlAdminSortKey = key; _dlAdminSortAsc = true; }
+  renderAdminView();
+  var el = document.getElementById('dlContainer');
+  if (el) el.scrollTop = 0;
+}
+
+function switchTab(n) {
+  _adminTab = n;
+  renderAdminView();
+  var el = document.getElementById('dlContainer');
+  if (el) el.scrollTop = 0;
+}
+
+// ---- Start ----
+startDistribMode();
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
+</script>
+</body>
+</html>
