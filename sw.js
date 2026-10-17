@@ -1,4 +1,4 @@
-var CACHE_NAME = 'setai-viewer-v6';
+var CACHE_NAME = 'setai-viewer-v7';
 
 var PRECACHE = [
   './manifest.json',
@@ -37,6 +37,7 @@ self.addEventListener('fetch', function(e) {
   if (url.indexOf('index.html') !== -1 || url.endsWith('/') || url.endsWith('/setai-viewer-/')) {
     e.respondWith(
       fetch(e.request).then(function(res) {
+        if (!res.ok) return res;
         var clone = res.clone();
         caches.open(CACHE_NAME).then(function(cache) {
           cache.put(e.request, clone);
@@ -49,12 +50,19 @@ self.addEventListener('fetch', function(e) {
     return;
   }
 
+  // data/sessions/ID.json（配布指示）: 作成直後は公開前で404のことがあるので、常にネットワークから取り、キャッシュしない
+  if (url.indexOf('/data/sessions/') !== -1) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+
   // data/XX.json: キャッシュ優先（初回はネットワーク取得してキャッシュ）
   if (url.indexOf('/data/') !== -1 && url.indexOf('.json') !== -1) {
     e.respondWith(
       caches.match(e.request).then(function(cached) {
         if (cached) return cached;
         return fetch(e.request).then(function(res) {
+          if (!res.ok) return res;
           var clone = res.clone();
           caches.open(CACHE_NAME).then(function(cache) {
             cache.put(e.request, clone);
@@ -71,6 +79,7 @@ self.addEventListener('fetch', function(e) {
     caches.match(e.request).then(function(cached) {
       if (cached) return cached;
       return fetch(e.request).then(function(res) {
+        if (!res.ok) return res;
         var clone = res.clone();
         caches.open(CACHE_NAME).then(function(cache) {
           cache.put(e.request, clone);
